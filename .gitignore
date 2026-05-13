@@ -40,3 +40,4 @@ Thumbs.db
 # Uploads (temporary audio files)
 /uploads/*
 !/uploads/.gitkeep
+/*.tsbuildinfo
