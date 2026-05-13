@@ -89,6 +89,10 @@ export class WorkerService implements OnModuleInit {
         summary,
       };
 
+      this.logger.log(
+        `[${job.id}] Finishing job: textLen=${result.transcription.length}, summaryLen=${result.summary.length}, lang=${result.language}`,
+      );
+
       await boss.complete('audio-processing', job.id, result);
 
       this.logger.log(`✅ Job ${job.id} completed successfully`);

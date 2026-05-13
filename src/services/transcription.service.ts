@@ -24,6 +24,7 @@ export class TranscriptionService {
   private readonly modelSize: string;
   private readonly device: string;
   private readonly computeType: string;
+  private readonly language: string;
 
   constructor(private readonly configService: ConfigService) {
     this.pythonPath = this.configService.get<string>('PYTHON_PATH', 'python');
@@ -31,6 +32,7 @@ export class TranscriptionService {
     this.modelSize = this.configService.get<string>('WHISPER_MODEL_SIZE', 'base');
     this.device = this.configService.get<string>('WHISPER_DEVICE', 'cuda');
     this.computeType = this.configService.get<string>('WHISPER_COMPUTE_TYPE', 'float16');
+    this.language = this.configService.get<string>('WHISPER_LANGUAGE', '');
   }
 
   async transcribe(filePath: string): Promise<TranscriptionResult> {
@@ -42,6 +44,10 @@ export class TranscriptionService {
         '--device', this.device,
         '--compute-type', this.computeType,
       ];
+
+      if (this.language) {
+        args.push('--language', this.language);
+      }
 
       this.logger.debug(
         `Spawning: ${this.pythonPath} ${args.join(' ')}`,
@@ -98,6 +104,10 @@ export class TranscriptionService {
 
         try {
           const result = JSON.parse(stdout);
+          
+          this.logger.debug(
+            `Parsed result: lang=${result.language}, textLength=${result.full_text?.length || 0}, segments=${result.segments?.length || 0}`,
+          );
 
           const transcriptionResult: TranscriptionResult = {
             segments: result.segments || [],

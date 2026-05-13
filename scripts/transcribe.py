@@ -10,6 +10,13 @@ logging.basicConfig(
     format="[whisper] %(levelname)s: %(message)s",
     stream=sys.stderr,
 )
+import logging
+
+# Force UTF-8 encoding for stdout on Windows
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 logger = logging.getLogger(__name__)
 
 def parse_args():
@@ -19,10 +26,19 @@ def parse_args():
     parser.add_argument("--device", default="cuda", help="Device (cuda/cpu)")
     parser.add_argument("--compute-type", default="float16", help="Compute type")
     parser.add_argument("--beam-size", type=int, default=5, help="Beam size")
+    parser.add_argument("--language", default=None, help="Force language (e.g. pt)")
     return parser.parse_args()
 
-def run_transcription(model, audio_path, beam_size):
-    segments_gen, info = model.transcribe(audio_path, beam_size=beam_size)
+def run_transcription(model, audio_path, beam_size, language=None):
+    # Use an initial prompt to guide the model towards the target language and style
+    initial_prompt = "Transcrição de áudio em português brasileiro." if language == "pt" else None
+    
+    segments_gen, info = model.transcribe(
+        audio_path, 
+        beam_size=beam_size, 
+        language=language,
+        initial_prompt=initial_prompt
+    )
     segments_list = []
     full_text_parts = []
     for segment in segments_gen:
@@ -56,8 +72,8 @@ def main():
         model = WhisperModel(args.model_size, device=current_device, compute_type=current_compute)
         load_time = time.time() - load_start
         
-        logger.info("Starting transcription...")
-        segments, full_text_parts, info = run_transcription(model, args.audio_path, args.beam_size)
+        logger.info(f"Starting transcription (lang={args.language})...")
+        segments, full_text_parts, info = run_transcription(model, args.audio_path, args.beam_size, language=args.language)
         full_text = " ".join(full_text_parts)
         
     except Exception as e:
@@ -71,7 +87,7 @@ def main():
                 model = WhisperModel(args.model_size, device="cpu", compute_type="int8")
                 load_time = time.time() - load_start
                 
-                segments, full_text_parts, info = run_transcription(model, args.audio_path, args.beam_size)
+                segments, full_text_parts, info = run_transcription(model, args.audio_path, args.beam_size, language=args.language)
                 full_text = " ".join(full_text_parts)
                 current_device = "cpu"
                 current_compute = "int8"
