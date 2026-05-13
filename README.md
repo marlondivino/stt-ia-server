@@ -1,94 +1,128 @@
 # STT-IA Server
 
-Servidor backend assíncrono para **transcrição de áudio** (faster-whisper) e **sumarização inteligente** (Ollama LLM), construído com Nest.js e filas PostgreSQL via pg-boss.
+Asynchronous backend server for **audio transcription** (faster-whisper) and **intelligent summarization** (Ollama LLM), built with Nest.js and PostgreSQL-backed job queues via pg-boss.
 
-## Arquitetura
+## Architecture
 
 ```
 Client → [POST /api/process] → Nest.js API → pg-boss Queue → Worker
-                                                                 ├── faster-whisper (Python) → Transcrição
-                                                                 └── Ollama (LLM) → Sumarização Executiva
+                                                                 ├── faster-whisper (Python) → Transcription
+                                                                 └── Ollama (LLM) → Executive Summary
 
-Client → [GET /api/status/:jobId] → Nest.js API → pg-boss → Status + Resultado
+Client → [GET /api/status/:jobId] → Nest.js API → pg-boss → Status + Result
 ```
 
-**Características principais:**
-- 🔒 Autenticação JWT em todos os endpoints de processamento
-- 📦 Fila assíncrona com pg-boss (evita timeouts de requisição)
-- 🎧 Processamento serial (`teamSize: 1`, `teamConcurrency: 1`) para não sobrecarregar hardware
-- 🗑️ Cleanup automático de arquivos temporários (sucesso ou falha)
-- 🔄 GPU com fallback automático para CPU
+### Integration Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Nest.js API
+    participant JWT Guard
+    participant pg-boss (PostgreSQL)
+    participant Worker
+    participant faster-whisper (Python)
+    participant Ollama (LLM)
+
+    Client->>Nest.js API: POST /api/process (audio + Bearer token)
+    Nest.js API->>JWT Guard: Validate token
+    JWT Guard-->>Nest.js API: Authorized
+    Nest.js API->>Nest.js API: multer saves to /uploads
+    Nest.js API->>pg-boss (PostgreSQL): boss.send("audio-processing", { filePath, ... })
+    Nest.js API-->>Client: 201 { jobId, status: "processing" }
+
+    pg-boss (PostgreSQL)->>Worker: Dequeue job
+    Worker->>faster-whisper (Python): spawn("python", ["transcribe.py", filePath])
+    faster-whisper (Python)-->>Worker: JSON stdout (segments + full text)
+    Worker->>Ollama (LLM): POST /api/generate { model, prompt+transcript }
+    Ollama (LLM)-->>Worker: { response: summary }
+    Worker->>Worker: Cleanup audio file (fs.unlink)
+    Worker-->>pg-boss (PostgreSQL): Return { transcription, summary } as job output
+
+    Client->>Nest.js API: GET /api/status/:jobId (Bearer token)
+    Nest.js API->>JWT Guard: Validate token
+    Nest.js API->>pg-boss (PostgreSQL): boss.getJobById(jobId)
+    pg-boss (PostgreSQL)-->>Nest.js API: Job state + output
+    Nest.js API-->>Client: { status, transcription, summary }
+```
+
+**Key features:**
+- 🔒 JWT authentication on all processing endpoints
+- 📦 Async job queue with pg-boss (prevents request timeouts)
+- 🎧 Serial processing (`batchSize: 1`) to avoid hardware overload
+- 🗑️ Automatic temp file cleanup (on both success and failure)
+- 🔄 GPU inference with automatic CPU fallback
 
 ---
 
-## Pré-requisitos
+## Prerequisites
 
 ### Node.js
-- **Node.js 20+** (testado com v22.22.2)
+- **Node.js 20+** (tested with v22.22.2)
 - npm 10+
 
 ### PostgreSQL
-- **PostgreSQL 14+** rodando localmente ou remotamente
-- Criar um database dedicado:
+- **PostgreSQL 14+** running locally or remotely
+- Create a dedicated database:
   ```sql
   CREATE DATABASE stt_ia;
   ```
-- O pg-boss cria suas tabelas automaticamente no primeiro `start()`
+- pg-boss creates its internal tables automatically on the first `start()` call
 
 ### Python
-- **Python 3.8+** com pip
-- Instalar faster-whisper:
+- **Python 3.8+** with pip
+- Install faster-whisper:
   ```bash
   pip install faster-whisper
   ```
 
 ### Ollama
-- **Ollama** instalado e rodando ([ollama.com](https://ollama.com))
-- Baixar o modelo LLM:
+- **Ollama** installed and running ([ollama.com](https://ollama.com))
+- Pull the LLM model:
   ```bash
   ollama pull llama3
   ```
-- Verificar que está acessível:
+- Verify it is accessible:
   ```bash
   curl http://localhost:11434/api/tags
   ```
 
 ---
 
-## Configuração de GPU vs CPU (Whisper)
+## GPU vs CPU Configuration (Whisper)
 
-O faster-whisper suporta tanto CPU quanto GPU NVIDIA (via CUDA). A configuração é feita pelas variáveis de ambiente:
+faster-whisper supports both CPU and NVIDIA GPU (via CUDA). Configuration is done through environment variables.
 
-### 🖥️ GPU NVIDIA (Recomendado)
+### 🖥️ NVIDIA GPU (Recommended)
 
-**Requisitos:**
-- Placa NVIDIA com CUDA Compute Capability 7.0+ (RTX 20xx ou superior)
-- [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-toolkit) instalado
-- [cuDNN 8.x+](https://developer.nvidia.com/cudnn) instalado
-- Driver NVIDIA atualizado
+**Requirements:**
+- NVIDIA GPU with CUDA Compute Capability 7.0+ (RTX 20xx or higher)
+- [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-toolkit) installed
+- [cuDNN 8.x+](https://developer.nvidia.com/cudnn) installed
+- Up-to-date NVIDIA drivers
 
-**Configuração no `.env`:**
+**`.env` configuration:**
 ```env
 WHISPER_DEVICE=cuda
 WHISPER_COMPUTE_TYPE=float16
 ```
 
-> **Performance:** GPU é ~10-20x mais rápido que CPU para transcrição. Um áudio de 30 minutos processa em ~30s com GPU vs ~10min com CPU.
+> **Performance:** GPU is approximately 10–20x faster than CPU for transcription. A 30-minute audio file processes in ~30s on GPU versus ~10 min on CPU.
 
 ### 💻 CPU Only
 
-Se não tem GPU NVIDIA ou quer rodar sem CUDA:
+If you don't have an NVIDIA GPU or want to run without CUDA:
 
 ```env
 WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
 ```
 
-> **Nota:** O script Python inclui fallback automático — se CUDA falhar, ele tentará CPU com `int8` automaticamente.
+> **Note:** The Python script includes automatic fallback — if CUDA initialization fails, it will attempt CPU with `int8` automatically.
 
-### Modelos Disponíveis
+### Available Models
 
-| Modelo | Parâmetros | VRAM (GPU) | RAM (CPU) | Velocidade | Precisão |
+| Model | Parameters | VRAM (GPU) | RAM (CPU) | Speed | Accuracy |
 |--------|-----------|------------|-----------|------------|----------|
 | `tiny` | 39M | ~1 GB | ~1 GB | ⚡⚡⚡⚡⚡ | ⭐ |
 | `base` | 74M | ~1 GB | ~1 GB | ⚡⚡⚡⚡ | ⭐⭐ |
@@ -96,62 +130,62 @@ WHISPER_COMPUTE_TYPE=int8
 | `medium` | 769M | ~5 GB | ~5 GB | ⚡⚡ | ⭐⭐⭐⭐ |
 | `large-v3` | 1550M | ~10 GB | ~10 GB | ⚡ | ⭐⭐⭐⭐⭐ |
 
-Configurar via:
+Set via:
 ```env
 WHISPER_MODEL_SIZE=base
 ```
 
 ---
 
-## Instalação
+## Installation
 
 ```bash
-# 1. Clonar o repositório
+# 1. Clone the repository
 git clone <repo-url>
 cd stt-ia-server
 
-# 2. Instalar dependências Node.js
+# 2. Install Node.js dependencies
 npm install
 
-# 3. Configurar variáveis de ambiente
+# 3. Configure environment variables
 cp .env.example .env
-# Editar .env com suas configurações (DATABASE_URL, JWT_SECRET, etc.)
+# Edit .env with your settings (DATABASE_URL, JWT_SECRET, etc.)
 
-# 4. Instalar dependência Python
+# 4. Install Python dependency
 pip install faster-whisper
 ```
 
 ---
 
-## Variáveis de Ambiente
+## Environment Variables
 
-| Variável | Descrição | Default |
+| Variable | Description | Default |
 |----------|-----------|---------|
-| `PORT` | Porta do servidor HTTP | `3000` |
-| `DATABASE_URL` | Connection string do PostgreSQL | — (obrigatório) |
-| `JWT_SECRET` | Chave secreta para assinatura JWT | — (obrigatório) |
-| `JWT_EXPIRES_IN` | Tempo de expiração do token | `24h` |
-| `ADMIN_USERNAME` | Usuário para login | `admin` |
-| `ADMIN_PASSWORD` | Senha para login | `admin` |
-| `OLLAMA_URL` | URL base do Ollama | `http://localhost:11434` |
-| `OLLAMA_MODEL` | Modelo LLM para sumarização | `llama3` |
-| `WHISPER_MODEL_SIZE` | Tamanho do modelo Whisper | `base` |
-| `WHISPER_DEVICE` | Dispositivo de inferência (`cuda`/`cpu`) | `cuda` |
-| `WHISPER_COMPUTE_TYPE` | Tipo de computação (`float16`/`int8`) | `float16` |
-| `PYTHON_PATH` | Caminho para o executável Python | `python` |
-| `UPLOAD_DIR` | Diretório para uploads temporários | `./uploads` |
-| `MAX_FILE_SIZE_MB` | Tamanho máximo de arquivo (MB) | `50` |
-| `JOB_RETENTION_DAYS` | Dias para reter jobs completados no DB | `365` |
+| `PORT` | HTTP server port | `3000` |
+| `DATABASE_URL` | PostgreSQL connection string | — (required) |
+| `JWT_SECRET` | Secret key for JWT signing | — (required) |
+| `JWT_EXPIRES_IN` | Token expiration time | `24h` |
+| `ADMIN_USERNAME` | Login username | `admin` |
+| `ADMIN_PASSWORD` | Login password | `admin` |
+| `OLLAMA_URL` | Ollama base URL | `http://localhost:11434` |
+| `OLLAMA_MODEL` | LLM model for summarization | `llama3` |
+| `WHISPER_MODEL_SIZE` | Whisper model size | `base` |
+| `WHISPER_DEVICE` | Inference device (`cuda` / `cpu`) | `cuda` |
+| `WHISPER_COMPUTE_TYPE` | Compute type (`float16` / `int8`) | `float16` |
+| `PYTHON_PATH` | Path to Python executable | `python` |
+| `UPLOAD_DIR` | Temporary upload directory | `./uploads` |
+| `MAX_FILE_SIZE_MB` | Maximum file size in MB | `50` |
+| `JOB_RETENTION_DAYS` | Days to retain completed jobs in DB | `365` |
 
 ---
 
-## Execução
+## Running
 
 ```bash
-# Desenvolvimento (hot reload)
+# Development (hot reload)
 npm run dev
 
-# Produção
+# Production
 npm run build
 npm run start:prod
 ```
@@ -160,7 +194,7 @@ npm run start:prod
 
 ## API
 
-### Autenticação
+### Authentication
 
 **POST** `/api/auth/login`
 
@@ -170,14 +204,14 @@ curl -X POST http://localhost:3000/api/auth/login \
   -d '{"username": "admin", "password": "admin"}'
 ```
 
-Resposta:
+Response:
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
 
-### Enviar Áudio para Processamento
+### Submit Audio for Processing
 
 **POST** `/api/process`
 
@@ -187,7 +221,7 @@ curl -X POST http://localhost:3000/api/process \
   -F "audio=@/path/to/audio.wav"
 ```
 
-Resposta (`201 Created`):
+Response (`201 Created`):
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -196,7 +230,7 @@ Resposta (`201 Created`):
 }
 ```
 
-### Consultar Status
+### Check Job Status
 
 **GET** `/api/status/:jobId`
 
@@ -205,7 +239,7 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer <token>"
 ```
 
-**Resposta (em processamento):**
+**Response (in progress):**
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -214,7 +248,7 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
 }
 ```
 
-**Resposta (concluído):**
+**Response (completed):**
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -223,17 +257,17 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
   "completedOn": "2026-05-12T22:02:30.000Z",
   "data": { "originalName": "meeting.wav" },
   "result": {
-    "transcription": "Texto completo da transcrição...",
+    "transcription": "Full transcription text...",
     "segments": [
-      { "start": 0.0, "end": 2.5, "text": "Bom dia a todos..." }
+      { "start": 0.0, "end": 2.5, "text": "Good morning everyone..." }
     ],
     "language": "pt",
-    "summary": "## Sumário Executivo\n\n**Tema Principal:** ..."
+    "summary": "## Executive Summary\n\n**Main Topic:** ..."
   }
 }
 ```
 
-**Resposta (falhou):**
+**Response (failed):**
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -244,33 +278,33 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
 
 ---
 
-## Estrutura do Projeto
+## Project Structure
 
 ```
 stt-ia-server/
 ├── src/
-│   ├── auth/                 # Módulo de autenticação JWT
+│   ├── auth/                 # JWT authentication module
 │   │   ├── auth.module.ts
 │   │   ├── auth.controller.ts
 │   │   ├── auth.service.ts
 │   │   ├── jwt.strategy.ts
 │   │   └── jwt-auth.guard.ts
-│   ├── queue/                # Módulo de fila (pg-boss)
+│   ├── queue/                # Job queue module (pg-boss)
 │   │   ├── queue.module.ts
 │   │   ├── boss.provider.ts
 │   │   └── worker.service.ts
-│   ├── processing/           # Módulo de processamento (API)
+│   ├── processing/           # Processing module (API layer)
 │   │   ├── processing.module.ts
 │   │   ├── processing.controller.ts
 │   │   └── processing.service.ts
-│   ├── services/             # Serviços de integração
+│   ├── services/             # Integration services
 │   │   ├── transcription.service.ts
 │   │   └── summarization.service.ts
 │   ├── app.module.ts
 │   └── main.ts
 ├── scripts/
-│   └── transcribe.py         # Script Python faster-whisper
-├── uploads/                  # Armazenamento temporário
+│   └── transcribe.py         # Python faster-whisper script
+├── uploads/                  # Temporary file storage
 ├── package.json
 ├── tsconfig.json
 ├── nest-cli.json
@@ -280,6 +314,6 @@ stt-ia-server/
 
 ---
 
-## Licença
+## License
 
-Uso interno.
+Internal use.

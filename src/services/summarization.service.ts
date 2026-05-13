@@ -68,6 +68,11 @@ export class SummarizationService {
     }
   }
 
+  /**
+   * Builds the executive summary prompt for Ollama.
+   * NOTE: The prompt is intentionally written in Brazilian Portuguese (PT-BR)
+   * so the LLM generates summaries in the user's native language.
+   */
   private buildPrompt(transcriptionText: string): string {
     return `Você é um assistente especializado em criar sumários executivos.
 
