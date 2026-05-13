@@ -5,7 +5,7 @@
 <h1 align="center">🎙️ STT-IA Server</h1>
 
 <p align="center">
-  <strong>The high-performance bridge between human speech and executive intelligence.</strong>
+  <strong>Audio transcription (faster-whisper) and summarization (Ollama) server built with NestJS and pg-boss.</strong>
 </p>
 
 <p align="center">
@@ -20,20 +20,20 @@
 
 ## 📖 Overview
 
-**STT-IA Server** is a robust, production-ready backend designed to orchestrate complex audio processing pipelines. It seamlessly integrates state-of-the-art Speech-to-Text (STT) via `faster-whisper` with intelligent LLM-driven summarization using `Ollama`.
+**STT-IA Server** processes audio files asynchronously to generate transcriptions and summaries. It uses `faster-whisper` for speech-to-text and `Ollama` for generating executive summaries from the transcribed text.
 
-Built for reliability, it features an asynchronous job architecture that handles hardware constraints gracefully, ensuring your server remains responsive while deep learning models do the heavy lifting in the background.
+The system uses `pg-boss` to manage a job queue in PostgreSQL, allowing for serial processing of audio files to manage hardware resources.
 
 ---
 
 ## 🧠 Key Features
 
-- ⚡ **Asynchronous Pipelines**: Powered by `pg-boss` (PostgreSQL), allowing long-running audio tasks without blocking the API.
-- 🎙️ **Multi-Model Transcription**: High-precision audio processing using `faster-whisper` (support for GPU/CPU).
-- 📝 **Executive Summarization**: Automated meeting notes and action items generation via local LLMs (Ollama).
-- 🔄 **Smart Hardware Fallback**: Automated detection of CUDA issues with seamless failover to CPU processing.
-- 🔒 **Enterprise-Grade Auth**: Full JWT implementation for secure endpoint access.
-- 🛠️ **Developer DX**: Built-in automated port cleanup and comprehensive Swagger documentation.
+- ⚡ **Asynchronous Queue**: Background processing using `pg-boss` and PostgreSQL.
+- 🎙️ **Transcription**: Audio processing via `faster-whisper` (GPU and CPU support).
+- 📝 **Summarization**: Generation of meeting notes and action items via `Ollama`.
+- 🔄 **Hardware Fallback**: Automatic CUDA to CPU failover if GPU libraries are missing.
+- 🔒 **Security**: JWT authentication for all processing endpoints.
+- 🛠️ **Dev Tools**: Automatic port cleanup and Swagger documentation.
 
 ---
 

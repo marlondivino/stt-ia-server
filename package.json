@@ -1,7 +1,7 @@
 {
   "name": "stt-ia-server",
   "version": "1.0.0",
-  "description": "Async audio transcription (faster-whisper) and summarization (Ollama) backend with pg-boss queue",
+  "description": "Audio transcription (faster-whisper) and summarization (Ollama) server built with NestJS and pg-boss.",
   "private": true,
   "scripts": {
     "build": "nest build",
