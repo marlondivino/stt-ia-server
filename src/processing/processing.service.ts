@@ -30,12 +30,19 @@ export class ProcessingService {
   ): Promise<{ jobId: string }> {
     const boss = this.bossProvider.getInstance();
 
-    const jobId = await boss.send('audio-processing', {
-      filePath,
-      originalName,
-    });
-
+    let jobId: string | null = null;
+    try {
+      jobId = await boss.send('audio-processing', {
+        filePath,
+        originalName,
+      });
+    } catch (err: any) {
+      this.logger.error(`Error calling boss.send: ${err.message}`, err.stack);
+      throw err;
+    }
+    
     if (!jobId) {
+      this.logger.error(`pg-boss send returned null for queue "audio-processing"`);
       throw new Error('Failed to create job — pg-boss returned null');
     }
 

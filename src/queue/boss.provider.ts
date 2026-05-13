@@ -38,7 +38,11 @@ export class BossProvider implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     this.logger.log('Starting pg-boss...');
     await this.boss.start();
-    this.logger.log('✅ pg-boss started successfully');
+    
+    // Ensure the queue is created with specific configurations if needed
+    await this.boss.createQueue('audio-processing');
+    
+    this.logger.log('✅ pg-boss started and queue "audio-processing" ensured');
   }
 
   async onModuleDestroy() {

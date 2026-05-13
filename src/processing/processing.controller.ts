@@ -92,8 +92,10 @@ export class ProcessingController {
       );
     }
 
+    const normalizedPath = path.normalize(file.path);
+
     const { jobId } = await this.processingService.createJob(
-      file.path,
+      normalizedPath,
       file.originalname,
     );
 

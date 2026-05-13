@@ -10,6 +10,7 @@
       "autoAttachChildProcesses": true,
       "console": "integratedTerminal",
       "restart": true,
+      "preLaunchTask": "kill-port-3000",
       "cwd": "${workspaceFolder}"
     },
     {
