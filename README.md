@@ -52,170 +52,89 @@ sequenceDiagram
 - 📦 Async job queue with pg-boss (prevents request timeouts)
 - 🎧 Serial processing (`batchSize: 1`) to avoid hardware overload
 - 🗑️ Automatic temp file cleanup (on both success and failure)
-- 🔄 GPU inference with automatic CPU fallback
+- 🔄 **GPU inference with robust CPU fallback** for both Whisper and Ollama
+- 🛠️ **Developer Friendly**: Auto-kill port conflict tasks for smooth debugging
 
 ---
 
 ## Prerequisites
 
 ### Node.js
-
 - **Node.js 20+** (tested with v22.22.2)
 - npm 10+
 
 ### PostgreSQL
-
-- **PostgreSQL 14+** running locally or remotely
-- Create a dedicated database:
-  ```sql
-  CREATE DATABASE stt_ia;
-  ```
-- pg-boss creates its internal tables automatically on the first `start()` call
+- **PostgreSQL 14+**
+- Create database: `CREATE DATABASE stt_ia_server;`
 
 ### Python
-
-- **Python 3.8+** with pip
-- Install faster-whisper:
-  ```bash
-  pip install faster-whisper
-  ```
+- **Python 3.8+**
+- Install dependencies: `pip install faster-whisper`
 
 ### Ollama
-
 - **Ollama** installed and running ([ollama.com](https://ollama.com))
-- Pull the LLM model:
-  ```bash
-  ollama pull llama3
-  ```
-- Verify it is accessible:
-  ```bash
-  curl http://localhost:11434/api/tags
-  ```
+- Pull model: `ollama pull llama3`
 
 ---
 
-## GPU vs CPU Configuration (Whisper)
+## 🛠️ Development & Debugging
 
-faster-whisper supports both CPU and NVIDIA GPU (via CUDA). Configuration is done through environment variables.
+Este projeto inclui configurações avançadas para o VS Code para facilitar o desenvolvimento.
 
-### 🖥️ NVIDIA GPU (Recommended)
+### Iniciando o Debug
+Pressione **F5** no VS Code ou use a aba de "Run and Debug" e escolha **"Launch Nest.js"**.
 
-**Requirements:**
+### Limpeza Automática de Portas
+Configuramos uma `preLaunchTask` que executa o script `scripts/kill-ports.js` antes de iniciar o servidor. Isso garante que:
+1.  Qualquer processo travado na porta **3000** ou **9229** seja encerrado.
+2.  Você não receba erros de `EADDRINUSE`.
+3.  O debugger sempre consiga se anexar corretamente.
 
-- NVIDIA GPU with CUDA Compute Capability 7.0+ (RTX 20xx or higher)
-- [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-toolkit) installed
-- [cuDNN 8.x+](https://developer.nvidia.com/cudnn) installed
-- Up-to-date NVIDIA drivers
+---
 
-**`.env` configuration:**
+## 🔄 Resiliência de Hardware (GPU vs CPU)
 
-```env
-WHISPER_DEVICE=cuda
-WHISPER_COMPUTE_TYPE=float16
-```
+O servidor foi projetado para rodar em ambientes com ou sem GPU NVIDIA.
 
-> **Performance:** GPU is approximately 10–20x faster than CPU for transcription. A 30-minute audio file processes in ~30s on GPU versus ~10 min on CPU.
+### Whisper (Transcrição)
+O script `scripts/transcribe.py` tenta usar CUDA (GPU) por padrão. Se encontrar erros de biblioteca (`cublas64_12.dll` ausente, etc.), ele:
+1.  Loga o aviso de erro de GPU.
+2.  **Reinicia a transcrição automaticamente usando a CPU** (modo `int8`).
+3.  Garante que o resultado final seja entregue sem falhas no job.
 
-### 💻 CPU Only
-
-If you don't have an NVIDIA GPU or want to run without CUDA:
-
-```env
-WHISPER_DEVICE=cpu
-WHISPER_COMPUTE_TYPE=int8
-```
-
-> **Note:** The Python script includes automatic fallback — if CUDA initialization fails, it will attempt CPU with `int8` automatically.
-
-### Available Models
-
-| Model      | Parameters | VRAM (GPU) | RAM (CPU) | Speed      | Accuracy   |
-| ---------- | ---------- | ---------- | --------- | ---------- | ---------- |
-| `tiny`     | 39M        | ~1 GB      | ~1 GB     | ⚡⚡⚡⚡⚡ | ⭐         |
-| `base`     | 74M        | ~1 GB      | ~1 GB     | ⚡⚡⚡⚡   | ⭐⭐       |
-| `small`    | 244M       | ~2 GB      | ~2 GB     | ⚡⚡⚡     | ⭐⭐⭐     |
-| `medium`   | 769M       | ~5 GB      | ~5 GB     | ⚡⚡       | ⭐⭐⭐⭐   |
-| `large-v3` | 1550M      | ~10 GB     | ~10 GB    | ⚡         | ⭐⭐⭐⭐⭐ |
-
-Set via:
-
-```env
-WHISPER_MODEL_SIZE=base
+### Ollama (Resumo)
+Se o Ollama apresentar erros de CUDA ao tentar processar o resumo, você pode forçá-lo a rodar apenas na CPU definindo a seguinte variável de ambiente no seu sistema operacional:
+```powershell
+# Windows PowerShell
+$env:OLLAMA_SKIP_GPU=1
+ollama serve
 ```
 
 ---
 
-## Installation
+## 📋 Environment Variables
 
-```bash
-# 1. Clone the repository
-git clone <repo-url>
-cd stt-ia-server
-
-# 2. Install Node.js dependencies
-npm install
-
-# 3. Configure environment variables
-cp .env.example .env
-# Edit .env with your settings (DATABASE_URL, JWT_SECRET, etc.)
-
-# 4. Install Python dependency
-pip install faster-whisper
-```
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | HTTP port | `3000` |
+| `DATABASE_URL` | PostgreSQL URL | `postgres://...` |
+| `JWT_SECRET` | Secret key | — (required) |
+| `WHISPER_DEVICE` | `cuda` or `cpu` | `cuda` |
+| `UPLOAD_DIR` | Temp storage | `./uploads` |
 
 ---
 
-## Environment Variables
+## 📖 API Documentation (Swagger)
 
-| Variable               | Description                         | Default                  |
-| ---------------------- | ----------------------------------- | ------------------------ |
-| `PORT`                 | HTTP server port                    | `3000`                   |
-| `DATABASE_URL`         | PostgreSQL connection string        | — (required)             |
-| `JWT_SECRET`           | Secret key for JWT signing          | — (required)             |
-| `JWT_EXPIRES_IN`       | Token expiration time               | `24h`                    |
-| `ADMIN_USERNAME`       | Login username                      | `admin`                  |
-| `ADMIN_PASSWORD`       | Login password                      | `admin`                  |
-| `OLLAMA_URL`           | Ollama base URL                     | `http://localhost:11434` |
-| `OLLAMA_MODEL`         | LLM model for summarization         | `llama3`                 |
-| `WHISPER_MODEL_SIZE`   | Whisper model size                  | `base`                   |
-| `WHISPER_DEVICE`       | Inference device (`cuda` / `cpu`)   | `cuda`                   |
-| `WHISPER_COMPUTE_TYPE` | Compute type (`float16` / `int8`)   | `float16`                |
-| `PYTHON_PATH`          | Path to Python executable           | `python`                 |
-| `UPLOAD_DIR`           | Temporary upload directory          | `./uploads`              |
-| `MAX_FILE_SIZE_MB`     | Maximum file size in MB             | `50`                     |
-| `JOB_RETENTION_DAYS`   | Days to retain completed jobs in DB | `365`                    |
+A documentação interativa está disponível em:
+👉 **`http://localhost:3000/docs`**
 
----
-
-## Running
-
-```bash
-# Development (hot reload)
-npm run dev
-
-# Production
-npm run build
-npm run start:prod
-```
-
----
-
-## API Documentation
-
-The API documentation is automatically generated using Swagger (OpenAPI 3.0). It provides an interactive interface to explore and test the endpoints.
-
-- **URL:** `http://localhost:3000/docs`
-
-### How to use with Authentication:
-
-1. Access `/docs` in your browser.
-2. Locate the **Auth** section and use the `POST /api/auth/login` endpoint to get an `access_token`.
-3. Click the **Authorize** button at the top right of the page.
-4. Enter your token in the format: `Bearer YOUR_TOKEN_HERE` (or just the token if the field already prepends "Bearer").
-5. Click **Authorize** and then **Close**.
-6. Now you can use the **Processing** endpoints by clicking "Try it out".
-
----
+### Fluxo de Teste:
+1.  Faça login em `POST /api/auth/login` (usuário padrão no `.env`).
+2.  Copie o `access_token`.
+3.  Clique em **Authorize** no topo do Swagger e insira o token.
+4.  Realize o upload do áudio em `POST /api/process`.
+5.  Consulte o status usando o `jobId` retornado.
 
 ---
 
@@ -223,38 +142,16 @@ The API documentation is automatically generated using Swagger (OpenAPI 3.0). It
 
 ```
 stt-ia-server/
-├── src/
-│   ├── auth/                 # JWT authentication module
-│   │   ├── auth.module.ts
-│   │   ├── auth.controller.ts
-│   │   ├── auth.service.ts
-│   │   ├── jwt.strategy.ts
-│   │   └── jwt-auth.guard.ts
-│   ├── queue/                # Job queue module (pg-boss)
-│   │   ├── queue.module.ts
-│   │   ├── boss.provider.ts
-│   │   └── worker.service.ts
-│   ├── processing/           # Processing module (API layer)
-│   │   ├── processing.module.ts
-│   │   ├── processing.controller.ts
-│   │   └── processing.service.ts
-│   ├── services/             # Integration services
-│   │   ├── transcription.service.ts
-│   │   └── summarization.service.ts
-│   ├── app.module.ts
-│   └── main.ts
+├── .vscode/                  # Debug & Tasks configurations
+├── src/                      # Nest.js source code
 ├── scripts/
-│   └── transcribe.py         # Python faster-whisper script
-├── uploads/                  # Temporary file storage
-├── package.json
-├── tsconfig.json
-├── nest-cli.json
-├── .env.example
+│   ├── transcribe.py         # Whisper script with CPU fallback
+│   └── kill-ports.js         # Node utility to clear ports
+├── uploads/                  # Temporary audio storage
 └── README.md
 ```
 
 ---
 
 ## License
-
 Internal use.
