@@ -7,7 +7,6 @@
       "name": "Launch Nest.js",
       "program": "${workspaceFolder}/node_modules/@nestjs/cli/bin/nest.js",
       "args": ["start", "--debug", "--watch"],
-      "protocol": "inspector",
       "console": "integratedTerminal",
       "restart": true,
       "sourceMaps": true,
