@@ -207,6 +207,7 @@ The API documentation is automatically generated using Swagger (OpenAPI 3.0). It
 - **URL:** `http://localhost:3000/docs`
 
 ### How to use with Authentication:
+
 1. Access `/docs` in your browser.
 2. Locate the **Auth** section and use the `POST /api/auth/login` endpoint to get an `access_token`.
 3. Click the **Authorize** button at the top right of the page.
@@ -215,93 +216,6 @@ The API documentation is automatically generated using Swagger (OpenAPI 3.0). It
 6. Now you can use the **Processing** endpoints by clicking "Try it out".
 
 ---
-
-## API Reference (CURL Examples)
-
-**POST** `/api/auth/login`
-
-```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin"}'
-```
-
-Response:
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
-
-### Submit Audio for Processing
-
-**POST** `/api/process`
-
-```bash
-curl -X POST http://localhost:3000/api/process \
-  -H "Authorization: Bearer <token>" \
-  -F "audio=@/path/to/audio.wav"
-```
-
-Response (`201 Created`):
-
-```json
-{
-  "jobId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "processing",
-  "message": "Audio file queued for transcription and summarization."
-}
-```
-
-### Check Job Status
-
-**GET** `/api/status/:jobId`
-
-```bash
-curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response (in progress):**
-
-```json
-{
-  "jobId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "processing",
-  "data": { "originalName": "meeting.wav" }
-}
-```
-
-**Response (completed):**
-
-```json
-{
-  "jobId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "completed",
-  "createdOn": "2026-05-12T22:00:00.000Z",
-  "completedOn": "2026-05-12T22:02:30.000Z",
-  "data": { "originalName": "meeting.wav" },
-  "result": {
-    "transcription": "Full transcription text...",
-    "segments": [
-      { "start": 0.0, "end": 2.5, "text": "Good morning everyone..." }
-    ],
-    "language": "pt",
-    "summary": "## Executive Summary\n\n**Main Topic:** ..."
-  }
-}
-```
-
-**Response (failed):**
-
-```json
-{
-  "jobId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "failed",
-  "error": "Transcription failed with exit code 1..."
-}
-```
 
 ---
 
