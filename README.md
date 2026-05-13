@@ -47,6 +47,7 @@ sequenceDiagram
 ```
 
 **Key features:**
+
 - 🔒 JWT authentication on all processing endpoints
 - 📦 Async job queue with pg-boss (prevents request timeouts)
 - 🎧 Serial processing (`batchSize: 1`) to avoid hardware overload
@@ -58,10 +59,12 @@ sequenceDiagram
 ## Prerequisites
 
 ### Node.js
+
 - **Node.js 20+** (tested with v22.22.2)
 - npm 10+
 
 ### PostgreSQL
+
 - **PostgreSQL 14+** running locally or remotely
 - Create a dedicated database:
   ```sql
@@ -70,6 +73,7 @@ sequenceDiagram
 - pg-boss creates its internal tables automatically on the first `start()` call
 
 ### Python
+
 - **Python 3.8+** with pip
 - Install faster-whisper:
   ```bash
@@ -77,6 +81,7 @@ sequenceDiagram
   ```
 
 ### Ollama
+
 - **Ollama** installed and running ([ollama.com](https://ollama.com))
 - Pull the LLM model:
   ```bash
@@ -96,12 +101,14 @@ faster-whisper supports both CPU and NVIDIA GPU (via CUDA). Configuration is don
 ### 🖥️ NVIDIA GPU (Recommended)
 
 **Requirements:**
+
 - NVIDIA GPU with CUDA Compute Capability 7.0+ (RTX 20xx or higher)
 - [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-toolkit) installed
 - [cuDNN 8.x+](https://developer.nvidia.com/cudnn) installed
 - Up-to-date NVIDIA drivers
 
 **`.env` configuration:**
+
 ```env
 WHISPER_DEVICE=cuda
 WHISPER_COMPUTE_TYPE=float16
@@ -122,15 +129,16 @@ WHISPER_COMPUTE_TYPE=int8
 
 ### Available Models
 
-| Model | Parameters | VRAM (GPU) | RAM (CPU) | Speed | Accuracy |
-|--------|-----------|------------|-----------|------------|----------|
-| `tiny` | 39M | ~1 GB | ~1 GB | ⚡⚡⚡⚡⚡ | ⭐ |
-| `base` | 74M | ~1 GB | ~1 GB | ⚡⚡⚡⚡ | ⭐⭐ |
-| `small` | 244M | ~2 GB | ~2 GB | ⚡⚡⚡ | ⭐⭐⭐ |
-| `medium` | 769M | ~5 GB | ~5 GB | ⚡⚡ | ⭐⭐⭐⭐ |
-| `large-v3` | 1550M | ~10 GB | ~10 GB | ⚡ | ⭐⭐⭐⭐⭐ |
+| Model      | Parameters | VRAM (GPU) | RAM (CPU) | Speed      | Accuracy   |
+| ---------- | ---------- | ---------- | --------- | ---------- | ---------- |
+| `tiny`     | 39M        | ~1 GB      | ~1 GB     | ⚡⚡⚡⚡⚡ | ⭐         |
+| `base`     | 74M        | ~1 GB      | ~1 GB     | ⚡⚡⚡⚡   | ⭐⭐       |
+| `small`    | 244M       | ~2 GB      | ~2 GB     | ⚡⚡⚡     | ⭐⭐⭐     |
+| `medium`   | 769M       | ~5 GB      | ~5 GB     | ⚡⚡       | ⭐⭐⭐⭐   |
+| `large-v3` | 1550M      | ~10 GB     | ~10 GB    | ⚡         | ⭐⭐⭐⭐⭐ |
 
 Set via:
+
 ```env
 WHISPER_MODEL_SIZE=base
 ```
@@ -159,23 +167,23 @@ pip install faster-whisper
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-----------|---------|
-| `PORT` | HTTP server port | `3000` |
-| `DATABASE_URL` | PostgreSQL connection string | — (required) |
-| `JWT_SECRET` | Secret key for JWT signing | — (required) |
-| `JWT_EXPIRES_IN` | Token expiration time | `24h` |
-| `ADMIN_USERNAME` | Login username | `admin` |
-| `ADMIN_PASSWORD` | Login password | `admin` |
-| `OLLAMA_URL` | Ollama base URL | `http://localhost:11434` |
-| `OLLAMA_MODEL` | LLM model for summarization | `llama3` |
-| `WHISPER_MODEL_SIZE` | Whisper model size | `base` |
-| `WHISPER_DEVICE` | Inference device (`cuda` / `cpu`) | `cuda` |
-| `WHISPER_COMPUTE_TYPE` | Compute type (`float16` / `int8`) | `float16` |
-| `PYTHON_PATH` | Path to Python executable | `python` |
-| `UPLOAD_DIR` | Temporary upload directory | `./uploads` |
-| `MAX_FILE_SIZE_MB` | Maximum file size in MB | `50` |
-| `JOB_RETENTION_DAYS` | Days to retain completed jobs in DB | `365` |
+| Variable               | Description                         | Default                  |
+| ---------------------- | ----------------------------------- | ------------------------ |
+| `PORT`                 | HTTP server port                    | `3000`                   |
+| `DATABASE_URL`         | PostgreSQL connection string        | — (required)             |
+| `JWT_SECRET`           | Secret key for JWT signing          | — (required)             |
+| `JWT_EXPIRES_IN`       | Token expiration time               | `24h`                    |
+| `ADMIN_USERNAME`       | Login username                      | `admin`                  |
+| `ADMIN_PASSWORD`       | Login password                      | `admin`                  |
+| `OLLAMA_URL`           | Ollama base URL                     | `http://localhost:11434` |
+| `OLLAMA_MODEL`         | LLM model for summarization         | `llama3`                 |
+| `WHISPER_MODEL_SIZE`   | Whisper model size                  | `base`                   |
+| `WHISPER_DEVICE`       | Inference device (`cuda` / `cpu`)   | `cuda`                   |
+| `WHISPER_COMPUTE_TYPE` | Compute type (`float16` / `int8`)   | `float16`                |
+| `PYTHON_PATH`          | Path to Python executable           | `python`                 |
+| `UPLOAD_DIR`           | Temporary upload directory          | `./uploads`              |
+| `MAX_FILE_SIZE_MB`     | Maximum file size in MB             | `50`                     |
+| `JOB_RETENTION_DAYS`   | Days to retain completed jobs in DB | `365`                    |
 
 ---
 
@@ -205,6 +213,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 ```
 
 Response:
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIs..."
@@ -222,6 +231,7 @@ curl -X POST http://localhost:3000/api/process \
 ```
 
 Response (`201 Created`):
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -240,6 +250,7 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
 ```
 
 **Response (in progress):**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -249,6 +260,7 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
 ```
 
 **Response (completed):**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -268,6 +280,7 @@ curl http://localhost:3000/api/status/550e8400-e29b-41d4-a716-446655440000 \
 ```
 
 **Response (failed):**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
