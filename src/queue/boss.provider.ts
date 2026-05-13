@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import PgBoss from 'pg-boss';
+import * as PgBoss from 'pg-boss';
 
 @Injectable()
 export class BossProvider implements OnModuleInit, OnModuleDestroy {
