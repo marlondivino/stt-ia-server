@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { BossProvider } from './queue/boss.provider';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -23,6 +24,26 @@ async function bootstrap() {
 
   // Global prefix for all routes
   app.setGlobalPrefix('api');
+
+  // Swagger Configuration
+  const config = new DocumentBuilder()
+    .setTitle('STT-IA API')
+    .setDescription('Speech-to-Text and Summarization API with pg-boss queue')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
 
   // pg-boss is initialized via BossProvider.onModuleInit (Nest lifecycle)
   // which runs before the app starts listening

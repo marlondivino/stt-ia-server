@@ -11,6 +11,15 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+  ApiProperty,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,6 +27,13 @@ import * as path from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ProcessingService, JobStatusResponse } from './processing.service';
 
+class FileUploadDto {
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Audio file to process' })
+  audio!: any;
+}
+
+@ApiTags('Processing')
+@ApiBearerAuth('JWT-auth')
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ProcessingController {
@@ -27,6 +43,15 @@ export class ProcessingController {
 
   @Post('process')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Upload audio file for processing' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Audio file to be transcribed and summarized',
+    type: FileUploadDto,
+  })
+  @ApiResponse({ status: 201, description: 'Job created successfully.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or missing field.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @UseInterceptors(
     FileInterceptor('audio', {
       storage: diskStorage({
@@ -80,6 +105,10 @@ export class ProcessingController {
   }
 
   @Get('status/:jobId')
+  @ApiOperation({ summary: 'Get job status and results' })
+  @ApiResponse({ status: 200, description: 'Return job status and results (if completed).' })
+  @ApiResponse({ status: 404, description: 'Job not found.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getStatus(
     @Param('jobId', new ParseUUIDPipe()) jobId: string,
   ): Promise<JobStatusResponse> {

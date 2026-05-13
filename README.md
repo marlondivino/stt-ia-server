@@ -200,9 +200,23 @@ npm run start:prod
 
 ---
 
-## API
+## API Documentation
 
-### Authentication
+The API documentation is automatically generated using Swagger (OpenAPI 3.0). It provides an interactive interface to explore and test the endpoints.
+
+- **URL:** `http://localhost:3000/docs`
+
+### How to use with Authentication:
+1. Access `/docs` in your browser.
+2. Locate the **Auth** section and use the `POST /api/auth/login` endpoint to get an `access_token`.
+3. Click the **Authorize** button at the top right of the page.
+4. Enter your token in the format: `Bearer YOUR_TOKEN_HERE` (or just the token if the field already prepends "Bearer").
+5. Click **Authorize** and then **Close**.
+6. Now you can use the **Processing** endpoints by clicking "Try it out".
+
+---
+
+## API Reference (CURL Examples)
 
 **POST** `/api/auth/login`
 
