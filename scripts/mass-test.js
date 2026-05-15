@@ -7,15 +7,28 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { createReadStream } = require('node:fs');
+const { openAsBlob } = require('node:fs');
 
 // Configuration from Environment or Defaults
-const API_URL = process.env.API_URL || 'http://localhost:3000';
+const BASE_URL = process.env.API_URL || 'http://localhost:3000';
+const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL.replace(/\/$/, '')}/api`;
+
 const USERNAME = process.env.ADMIN_USERNAME || 'user';
 const PASSWORD = process.env.ADMIN_PASSWORD || 'password';
 const CONCURRENCY = parseInt(process.env.TEST_CONCURRENCY || '3');
-const POLL_INTERVAL = 5000; // 5 seconds
-const MAX_POLL_ATTEMPTS = 120; // 10 minutes total
+const POLL_INTERVAL = 5000;
+const MAX_POLL_ATTEMPTS = 120;
+
+// MIME Type Mapping for Audio Files
+const MIME_TYPES = {
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.mp4': 'audio/mp4',
+  '.aac': 'audio/aac'
+};
 
 class TranscriptionTester {
   constructor(directory) {
@@ -30,7 +43,7 @@ class TranscriptionTester {
       startTime: Date.now(),
       errors: []
     };
-    this.supportedExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.mp4'];
+    this.supportedExtensions = Object.keys(MIME_TYPES);
   }
 
   /**
@@ -40,14 +53,14 @@ class TranscriptionTester {
     const now = Date.now() / 1000;
     if (!this.token || (this.tokenExpiry - now) < 300) {
       try {
-        console.log(`🔑 Authenticating as ${USERNAME}...`);
+        console.log(`🔑 Authenticating at ${API_URL}/auth/login ...`);
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: USERNAME, password: PASSWORD })
         });
 
-        if (!response.ok) throw new Error(`Auth status: ${response.status}`);
+        if (!response.ok) throw new Error(`Auth status: ${response.status} at ${API_URL}/auth/login`);
         
         const data = await response.json();
         this.token = data.access_token;
@@ -71,18 +84,23 @@ class TranscriptionTester {
    */
   async processFile(filePath) {
     const fileName = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
     const resultPath = filePath.replace(path.extname(filePath), '.json');
+    const mimeType = MIME_TYPES[ext];
+
+    if (!mimeType) {
+      throw new Error(`Unsupported file extension: ${ext}`);
+    }
 
     try {
       await this.ensureAuthenticated();
 
       // Step 2: Upload / Schedule
-      console.log(`🚀 [${fileName}] Uploading...`);
+      console.log(`🚀 [${fileName}] Uploading as ${mimeType} ...`);
       
       const formData = new FormData();
-      // Using file path directly with Blob for native fetch
-      const fileBuffer = await fs.readFile(filePath);
-      const blob = new Blob([fileBuffer]);
+      // Using openAsBlob with explicit type to satisfy server-side Multer validation
+      const blob = await openAsBlob(filePath, { type: mimeType });
       formData.append('audio', blob, fileName);
 
       const uploadRes = await fetch(`${API_URL}/process`, {
@@ -157,6 +175,8 @@ class TranscriptionTester {
     }
   }
 
+
+
   printProgress() {
     const percent = Math.round((this.stats.processed / (this.stats.total || 1)) * 100);
     const elapsed = Math.round((Date.now() - this.stats.startTime) / 1000);
@@ -167,11 +187,23 @@ class TranscriptionTester {
     console.log(`\n📂 Scanning directory: ${this.directory}`);
     
     const files = await fs.readdir(this.directory);
-    const audioFiles = files
-      .filter(f => this.supportedExtensions.includes(path.extname(f).toLowerCase()))
-      .map(f => path.join(this.directory, f));
+    const audioFiles = [];
+    let ignoredCount = 0;
+
+    for (const f of files) {
+      const ext = path.extname(f).toLowerCase();
+      if (this.supportedExtensions.includes(ext)) {
+        audioFiles.push(path.join(this.directory, f));
+      } else if (ext !== '.json' && ext !== '') {
+        ignoredCount++;
+      }
+    }
 
     this.stats.total = audioFiles.length;
+
+    if (ignoredCount > 0) {
+      console.log(`ℹ️  Ignored ${ignoredCount} files with unsupported extensions.`);
+    }
 
     if (this.stats.total === 0) {
       console.log('⚠️ No supported audio files found.');
